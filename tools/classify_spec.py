@@ -7,6 +7,7 @@ import re
 import shutil
 import sys
 import json
+from html.parser import HTMLParser
 import unicodedata
 import zipfile
 from pathlib import Path
@@ -22,7 +23,8 @@ MESSAGE = re.compile(r"\b(message|request|accept|complete|reject|command|respons
 
 
 def cell_text(cell: ET.Element) -> str:
-    return " ".join(element_text(cell).split())
+    paragraphs = [" ".join(element_text(paragraph).split()) for paragraph in cell.findall(".//w:p", NS)]
+    return " ".join(paragraph for paragraph in paragraphs if paragraph)
 
 
 def element_text(element: ET.Element) -> str:
@@ -39,6 +41,23 @@ def rows(table: ET.Element) -> list[list[str]]:
     return [[cell_text(c) for c in row.findall("w:tc", NS)] for row in table.findall("w:tr", NS)]
 
 
+def table_layout(table: ET.Element) -> list[list[tuple[int, str | None]]]:
+    span_tag = f"{{{NS['w']}}}gridSpan"
+    merge_tag = f"{{{NS['w']}}}vMerge"
+    value_attr = f"{{{NS['w']}}}val"
+    layout = []
+    for row in table.findall("w:tr", NS):
+        cells = []
+        for cell in row.findall("w:tc", NS):
+            props = cell.find("w:tcPr", NS)
+            span = props.find("w:gridSpan", NS) if props is not None else None
+            merge = props.find("w:vMerge", NS) if props is not None else None
+            cells.append((int(span.get(value_attr, "1")) if span is not None else 1,
+                          (merge.get(value_attr, "continue") or "continue") if merge is not None else None))
+        layout.append(cells)
+    return layout
+
+
 def docx_blocks(data: bytes):
     with zipfile.ZipFile(__import__("io").BytesIO(data)) as archive:
         xml = ET.fromstring(archive.read("word/document.xml"))
@@ -52,7 +71,7 @@ def docx_blocks(data: bytes):
                 style = item.find("w:pPr/w:pStyle", NS)
                 yield ("p", text, style.get(f"{{{NS['w']}}}val", "") if style is not None else "")
         elif item.tag.endswith("}tbl"):
-            yield ("table", rows(item), "")
+            yield ("table", rows(item), table_layout(item))
 
 
 def sources(version_dir: Path):
@@ -77,6 +96,71 @@ def md(value: str) -> str:
     return (value.replace("&", "&amp;").replace("{", "&#123;").replace("}", "&#125;")
             .replace("<", "&lt;").replace(">", "&gt;")
             .replace("|", "\\|").replace("\n", " ").strip())
+
+
+def html_text(value: str) -> str:
+    return (value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            .replace("{", "&#123;").replace("}", "&#125;")
+            .replace("*", "&#42;").replace("_", "&#95;").replace("`", "&#96;")
+            .replace("[", "&#91;").replace("]", "&#93;").replace("\\", "&#92;"))
+
+
+def html_table(table: list[list[str]], layout: list[list[tuple[int, str | None]]]) -> list[str]:
+    out = ["<table>"]
+    for row_index, row in enumerate(table):
+        tag = "th" if row_index == 0 else "td"
+        cells = []
+        column = 0
+        for cell_index, cell in enumerate(row):
+            span, merge = layout[row_index][cell_index]
+            if merge == "continue":
+                column += span
+                continue
+            rowspan = 1
+            if merge == "restart":
+                for next_row in range(row_index + 1, len(table)):
+                    next_column = 0
+                    continuation = False
+                    for next_span, next_merge in layout[next_row]:
+                        if next_column == column:
+                            continuation = next_merge == "continue" and next_span == span
+                            break
+                        next_column += next_span
+                    if not continuation:
+                        break
+                    rowspan += 1
+            colspan = f' colspan="{span}"' if span > 1 else ""
+            row_attr = f' rowspan="{rowspan}"' if rowspan > 1 else ""
+            cells.append(f"<{tag}{colspan}{row_attr}>{html_text(cell)}</{tag}>")
+            column += span
+        out.append("<tr>" + "".join(cells) + "</tr>")
+    return [*out, "</table>"]
+
+
+class SourceTable(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.rows = []
+        self.row = None
+        self.cell = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "tr":
+            self.row = []
+        elif tag in ("td", "th"):
+            self.cell = []
+
+    def handle_data(self, data):
+        if self.cell is not None:
+            self.cell.append(data)
+
+    def handle_endtag(self, tag):
+        if tag in ("td", "th") and self.cell is not None:
+            self.row.append(" ".join("".join(self.cell).split()))
+            self.cell = None
+        elif tag == "tr" and self.row is not None:
+            self.rows.append(self.row)
+            self.row = None
 
 
 def classify(spec: str, version: str, path: str, data: bytes) -> str:
@@ -119,21 +203,30 @@ def classify(spec: str, version: str, path: str, data: bytes) -> str:
         table = content
         if not table:
             continue
+        table_and_layout = [(row, layout) for row, layout in zip(table, style) if any(row) or any(merge for _, merge in layout)]
+        table = [row for row, _ in table_and_layout]
+        style = [layout for _, layout in table_and_layout]
+        if not table:
+            continue
         header_index = next((i for i, row in enumerate(table[:4]) if any("presence" in x.lower() for x in row) and any("length" in x.lower() for x in row)), None)
         if header_index is not None:
             headers = table[header_index]
             table_title = current_message or current_clause
             out.extend(["", f"#### Message IE table — {md(table_title)}", ""])
-            out.append("| " + " | ".join(md(x) or "—" for x in headers) + " |")
-            out.append("| " + " | ".join("---" for _ in headers) + " |")
-            for row in table[header_index + 1:]:
-                if any(row):
-                    padded = row + [""] * max(0, len(headers) - len(row))
-                    out.append("| " + " | ".join(md(x) or "—" for x in padded[:len(headers)]) + " |")
-                    ie_count += 1
+            merged = any(span > 1 or merge for row in style for span, merge in row)
+            if merged:
+                out.extend(html_table(table, style))
+                ie_count += sum(any(row) for row in table[header_index + 1:])
+            else:
+                out.append("| " + " | ".join(md(x) or "—" for x in headers) + " |")
+                out.append("| " + " | ".join("---" for _ in headers) + " |")
+                for row in table[header_index + 1:]:
+                    if any(row):
+                        padded = row + [""] * max(0, len(headers) - len(row))
+                        out.append("| " + " | ".join(md(x) or "—" for x in padded[:len(headers)]) + " |")
+                        ie_count += 1
         else:
-            out.extend(["", "| " + " | ".join(md(c) or "—" for c in table[0]) + " |", "| " + " | ".join("---" for _ in table[0]) + " |"])
-            out.extend("| " + " | ".join(md(c) or "—" for c in row[:len(table[0])]) + " |" for row in table[1:] if any(row))
+            out.extend(["", *html_table(table, style)])
     out.extend(["", "---", f"Extracted {clause_count} clause headings, {message_count} message/table sections, {ie_count} IE rows.", ""])
     return "\n".join(out)
 
@@ -186,6 +279,27 @@ def message_catalog(spec: str, version: str, markdown: str, origin: str) -> dict
             headers = []
             continue
         if not table:
+            continue
+        if line == "<table>":
+            source_table = [line]
+            while line_index + 1 < len(lines):
+                line_index += 1
+                source_table.append(lines[line_index])
+                if lines[line_index] == "</table>":
+                    break
+            parsed = SourceTable()
+            parsed.feed("\n".join(source_table))
+            rows = parsed.rows
+            header_index = next((index for index, row in enumerate(rows[:4]) if any("presence" in cell.lower() for cell in row) and any("length" in cell.lower() for cell in row)), None)
+            if header_index is not None:
+                headers = rows[header_index]
+                for row in rows[header_index + 1:]:
+                    if len(row) != len(headers) or not any(row):
+                        continue
+                    row_data = dict(zip(headers, row))
+                    reference = re.search(r"(?<![\d.])\d+(?:\.\d+)+[A-Z]?(?![\d.])", row_data.get("Type/Reference", ""))
+                    current["ies"].append({"name": row_data.get("Information Element", ""), "presence": row_data.get("Presence", ""), "iei": row_data.get("IEI", ""), "format": row_data.get("Format", ""), "length": row_data.get("Length", ""), "reference": reference.group(0) if reference else "", "rawReference": row_data.get("Type/Reference", "")})
+            table = False
             continue
         if not line.strip():
             continue
@@ -241,6 +355,20 @@ As specified in 3GPP TS 24.008 [1], subclause 10.5.1.
     assert result["messages"][0]["ies"][0]["reference"] == "9.11.3.32"
     assert result["messages"][0]["ies"][0]["presence"] == "M"
     assert result["references"][0]["clause"] == "10.5.1"
+    assert html_table([["Security header type (octet 1)"], ["Bits"]], [[(5, None)], [(5, None)]]) == [
+        "<table>",
+        "<tr><th colspan=\"5\">Security header type (octet 1)</th></tr>",
+        "<tr><td colspan=\"5\">Bits</td></tr>",
+        "</table>",
+    ]
+    assert html_table([["A"], ["X"], [""]], [[(1, None)], [(1, "restart")], [(1, "continue")]]) == [
+        "<table>", "<tr><th>A</th></tr>", "<tr><td rowspan=\"2\">X</td></tr>", "<tr></tr>", "</table>",
+    ]
+    parsed = SourceTable()
+    parsed.feed('<table><tr><th>Information Element</th><th>Presence</th><th>Length</th></tr><tr><td>Security header type</td><td>M</td><td>1</td></tr></table>')
+    assert parsed.rows == [["Information Element", "Presence", "Length"], ["Security header type", "M", "1"]]
+    cell = ET.fromstring(f'<w:tc xmlns:w="{NS["w"]}"><w:p><w:r><w:t>NOTE 1.</w:t></w:r></w:p><w:p><w:r><w:t>NOTE 2.</w:t></w:r></w:p></w:tc>')
+    assert cell_text(cell) == "NOTE 1. NOTE 2."
 
 
 def main() -> int:
@@ -271,14 +399,6 @@ def main() -> int:
                     static_page.mkdir(parents=True, exist_ok=True)
                     (static_page / f"source-{i}.md").write_text(markdown, encoding="utf-8")
                     entry = message_catalog(spec_dir.name, version_dir.name, markdown, origin)
-                    configured = version_map.get(f"{spec_dir.name}@{version_dir.name}", {})
-                    for reference in entry["references"]:
-                        target_version = configured.get(reference["spec"])
-                        target = next((item for item in catalog if item["spec"] == reference["spec"] and item["version"] == target_version), None)
-                        target_clause = next((clause for clause in target["clauses"] if clause["number"] == reference["clause"]), None) if target and reference["clause"] else None
-                        reference["targetVersion"] = target_version
-                        reference["status"] = "resolved" if target_clause else "unresolved" if not target_version else "missing_source" if not target else "missing_clause"
-                        reference["targetAnchor"] = target_clause["anchor"] if target_clause else None
                     catalog.append(entry)
                 (page_dir / "index.md").write_text(
                     f"---\ntitle: TS {spec_dir.name} V{version_dir.name}\nsidebar_position: 1\n---\n\n"
@@ -301,6 +421,15 @@ def main() -> int:
                 specs.append(spec_dir.name)
     links = "\n".join(f"- [TS {spec}](./{spec}/)" for spec in specs) or "No supported specification DOCX files found."
     (OUTPUT / "index.md").write_text(f"---\ntitle: 3GPP Specifications\nsidebar_position: 1\n---\n\n# 3GPP Specifications\n\n{links}\n", encoding="utf-8")
+    for item in catalog:
+        configured = version_map.get(f"{item['spec']}@{item['version']}", {})
+        for reference in item["references"]:
+            target_version = configured.get(reference["spec"])
+            target = next((candidate for candidate in catalog if candidate["spec"] == reference["spec"] and candidate["version"] == target_version), None)
+            target_clause = next((clause for clause in target["clauses"] if clause["number"] == reference["clause"]), None) if target and reference["clause"] else None
+            reference["targetVersion"] = target_version
+            reference["status"] = "resolved" if target_clause else "unresolved" if not target_version else "missing_source" if not target else "missing_clause"
+            reference["targetAnchor"] = target_clause["anchor"] if target_clause else None
     (ROOT / "static" / "spec-catalog.json").write_text(json.dumps(catalog, ensure_ascii=False), encoding="utf-8")
     if specs:
         print(f"Generated Docusaurus pages for specifications: {', '.join(specs)}")

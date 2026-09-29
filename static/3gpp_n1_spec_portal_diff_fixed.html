@@ -60,6 +60,7 @@ th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-al
 .fixed-diff-table td{word-break:break-word;overflow-wrap:anywhere}
 th{background:#f8fafc;font-weight:700}
 td.center,th.center{text-align:center}
+.ie-select{border:0;padding:0;background:none;color:var(--blue);text-align:left;cursor:pointer}
 .row-selected{background:#f7fbff}
 .badge{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:700}
 .badge.changed{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
@@ -98,6 +99,8 @@ td.center,th.center{text-align:center}
 .trace-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;color:#64748b;font-size:13px}
 .muted{color:var(--muted)}
 .hidden{display:none}
+.side-version{padding:10px 16px;border-bottom:1px solid var(--line)}
+.side-version label{display:block;margin-bottom:6px;color:var(--muted);font-size:12px;font-weight:700}
 @media(max-width:1150px){.layout{grid-template-columns:280px 1fr}.rightbar{display:none}}
 @media(max-width:760px){.layout{grid-template-columns:1fr}.sidebar{display:block;position:static;height:auto;max-height:280px;border-right:0;border-bottom:1px solid var(--line)}.main{padding:18px}.search{display:none}.diff-columns{grid-template-columns:1fr}}
 </style>
@@ -111,6 +114,7 @@ td.center,th.center{text-align:center}
 <div class="layout">
   <aside class="sidebar">
     <div class="side-title">N1</div>
+    <div class="side-version"><label for="version-select">Specification Version</label><select id="version-select" class="select"></select></div>
     <ul class="tree" id="spec-tree">
       <li><div class="node"><strong>▾ TS 24.501</strong></div></li>
       <li><div class="node ind1">▸ General / Common Rules</div></li>
@@ -224,7 +228,7 @@ td.center,th.center{text-align:center}
 
     <section id="tab-diff" class="hidden">
       <div class="card">
-        <div class="card-head"><h2>Actual content diff</h2><span class="badge changed">Added / Removed highlighted</span></div>
+        <div class="card-head"><h2>Diff preview</h2><span class="badge same">Sample</span></div>
         <div class="card-body">
           <div class="compare-grid" style="max-width:520px">
             <select id="main-compare-a" class="select"></select>
@@ -240,11 +244,6 @@ td.center,th.center{text-align:center}
   </main>
 
   <aside class="rightbar">
-    <div class="right-section">
-      <h3>Specification Version</h3>
-      <select id="version-select" class="select"></select>
-    </div>
-
     <div class="right-section">
       <h3>Stack Support</h3>
       <div id="support-summary"></div>
@@ -287,10 +286,12 @@ let sourceMarkdown = "";
 let browseMode = "messages";
 let selected = null;
 let activeMessage = null;
+let messageCollapsed = false;
 let selectedIE = null;
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const specEntries = () => catalog.filter((entry) => entry.spec === spec).sort((a,b) => b.version.localeCompare(a.version, undefined, {numeric:true}));
+const specEntriesFor = (specName) => catalog.filter((candidate) => candidate.spec === specName).sort((a,b) => b.version.localeCompare(a.version, undefined, {numeric:true}));
 const entry = () => specEntries().find((item) => item.version === currentVersion) || specEntries()[0];
 const sourceUrl = (item) => new URL(`docs/spec/${item.spec}/${item.version}/source-1/`, baseUrl);
 const sourceMarkdownUrl = (item) => new URL(`spec-content/${item.spec}/${item.version}/source-1.md`, baseUrl);
@@ -317,6 +318,13 @@ function sectionMarkup(item) {
   for (let i = 0; i < section.length;) {
     const line = section[i].trim();
     if (!line) { i += 1; continue; }
+    if (line === "<table>") {
+      const table = [];
+      while (i < section.length && section[i].trim() !== "</table>") table.push(section[i++].trim());
+      if (i < section.length) table.push(section[i++].trim());
+      blocks.push(`<div style="overflow:auto">${table.join("")}</div>`);
+      continue;
+    }
     if (line.startsWith("|")) {
       const rows = [];
       while (i < section.length && section[i].trim().startsWith("|")) {
@@ -344,6 +352,7 @@ async function selectSpec(nextSpec) {
   spec = nextSpec;
   currentVersion = specEntries()[0]?.version || "";
   activeMessage = entry()?.messages.find((candidate) => /registration request/i.test(candidate.title)) || entry()?.messages[0] || null;
+  messageCollapsed = false;
   selected = activeMessage || entry()?.clauses[0] || null;
   selectedIE = null;
   await loadContent();
@@ -352,26 +361,33 @@ async function selectSpec(nextSpec) {
 function renderSidebar() {
   const item = entry();
   activeMessage ||= selected?.ies ? selected : item.messages.find((candidate) => /registration request/i.test(candidate.title)) || item.messages[0];
-  const otherMessages = ["registration accept", "service request"].map((name) => item.messages.find((candidate) => candidate !== activeMessage && candidate.title.toLowerCase().includes(name))).filter(Boolean);
-  const ieRows = (activeMessage.ies || []).slice(0, 3);
+  const messageRows = item.messages.map((message) => {
+    const expanded = message === activeMessage && !messageCollapsed;
+    const ieRows = expanded ? (message.ies || []) : [];
+    return `<li><button class="node ind2 ${expanded ? "active" : ""}" data-action="message" data-anchor="${esc(message.anchor)}" aria-expanded="${expanded}"><strong>${expanded ? "▾" : "▸"} ${esc(message.title)}</strong></button></li>${ieRows.map((ie, index) => `<li><button class="node ind3 ${selectedIE === ie ? "active" : ""}" data-action="ie" data-index="${index}"><span class="dot gray"></span>${esc(ie.name || ie.rawReference)}</button></li>`).join("")}`;
+  }).join("");
   $("spec-tree").innerHTML = `
     <li><button class="node" data-action="spec" data-spec="${item.spec}"><strong>▾ TS ${item.spec}</strong></button></li>
     <li><button class="node ind1" data-action="clause" data-anchor="${esc(item.clauses.find((clause) => clause.number === "4")?.anchor || "")}">▸ General / Common Rules</button></li>
     <li><button class="node ind2" data-action="clause" data-anchor="${esc(item.clauses.find((clause) => clause.number === "4")?.anchor || "")}">${esc(item.clauses.find((clause) => clause.number === "4")?.title || "General")}</button></li>
     <li><div class="node ind1"><strong>▾ Messages</strong></div></li>
-    <li><button class="node ind2 ${!selectedIE && selected === activeMessage ? "active" : ""}" data-action="message" data-anchor="${esc(activeMessage.anchor)}"><strong>▾ ${esc(activeMessage.title)}</strong></button></li>
-    ${ieRows.map((ie, index) => `<li><button class="node ind3 ${selectedIE === ie ? "active" : ""}" data-action="ie" data-index="${index}"><span class="dot gray"></span>${esc(ie.name || ie.rawReference)}</button></li>`).join("")}
-    ${otherMessages.map((other) => `<li><button class="node ind2" data-action="message" data-anchor="${esc(other.anchor)}">▸ ${esc(other.title)}</button></li>`).join("")}`;
+    ${messageRows}`;
   $("spec-tree").querySelectorAll("[data-action]").forEach((button) => button.onclick = async () => {
     if (button.dataset.action === "spec") return selectSpec(button.dataset.spec);
     if (button.dataset.action === "clause") {
       selected = item.clauses.find((clause) => clause.anchor === button.dataset.anchor) || item.clauses[0];
       selectedIE = null;
     } else if (button.dataset.action === "message") {
-      activeMessage = item.messages.find((candidate) => candidate.anchor === button.dataset.anchor) || activeMessage;
+      const nextMessage = item.messages.find((candidate) => candidate.anchor === button.dataset.anchor) || activeMessage;
+      if (nextMessage === activeMessage) messageCollapsed = !messageCollapsed;
+      else {
+        activeMessage = nextMessage;
+        messageCollapsed = false;
+      }
       selected = activeMessage;
       selectedIE = null;
     } else {
+      messageCollapsed = false;
       selectedIE = activeMessage.ies[Number(button.dataset.index)];
       selected = item.clauses.find((clause) => clause.number === selectedIE?.reference) || activeMessage;
     }
@@ -394,28 +410,43 @@ function renderContent() {
   $("spec-text").innerHTML = sectionMarkup(content);
   $("source-note").textContent = `TS ${item.spec} V${item.version} DOCX에서 추출한 원문 섹션입니다.`;
   $("message-table-title").textContent = `${message.title} · Information Elements`;
-  $("ie-table-body").innerHTML = message.ies.map((ie) => `<tr class="${selectedIE === ie ? "row-selected" : ""}"><td>${esc(ie.name || ie.rawReference)}</td><td class="center">${esc(ie.presence)}</td><td class="center">${esc(ie.iei)}</td><td class="center">${esc(ie.length)}</td><td>${item.sourceUrl ? `<a href="${esc(item.sourceUrl)}" target="_blank" rel="noopener" title="Open official 3GPP TS ${item.spec} V${item.version} source archive">${esc(ie.reference || ie.rawReference || "3GPP source")} ↗</a>` : esc(ie.reference || ie.rawReference)}</td><td class="center"><span class="dot gray" title="Stack 근거 미연결"></span></td></tr>`).join("");
+  $("ie-table-body").innerHTML = message.ies.map((ie, index) => `<tr class="${selectedIE === ie ? "row-selected" : ""}"><td><button class="ie-select" data-ie-index="${index}">${esc(ie.name || ie.rawReference)}</button></td><td class="center">${esc(ie.presence)}</td><td class="center">${esc(ie.iei)}</td><td class="center">${esc(ie.length)}</td><td>${item.sourceUrl ? `<a href="${esc(item.sourceUrl)}" target="_blank" rel="noopener" title="Open official 3GPP TS ${item.spec} V${item.version} source archive">${esc(ie.reference || ie.rawReference || "3GPP source")}</a>` : esc(ie.reference || ie.rawReference)}</td><td class="center"><span class="dot gray" title="Stack 근거 미연결"></span></td></tr>`).join("");
+  $("ie-table-body").querySelectorAll("[data-ie-index]").forEach((button) => button.onclick = () => {
+    messageCollapsed = false;
+    selectedIE = message.ies[Number(button.dataset.ieIndex)];
+    selected = item.clauses.find((clause) => clause.number === selectedIE.reference) || message;
+    renderSidebar();
+    renderContent();
+  });
   $("field-card").classList.toggle("hidden", !isMessage && !selectedIE);
-  $("ref-text").innerHTML = `<a href="${sourceUrl(item)}" target="_blank" rel="noopener">TS ${item.spec} V${item.version} 전체 원문 보기</a><p class="muted">참조 규격은 원본 문서의 참조 목록에 기록되어 있습니다. 이 포털에 업로드된 규격은 TS 24.501과 TS 24.008입니다.</p>`;
+  $("ref-text").innerHTML = `<a href="${sourceUrl(item)}" target="_blank" rel="noopener">TS ${item.spec} V${item.version} 전체 원문 보기</a>`;
   const pill = $("status-pill");
   pill.innerHTML = `<span class="dot gray"></span><span>Stack 근거 미연결</span>`;
   pill.style.cssText = "background:#f8fafc;color:#475569;border-color:#e2e8f0";
   $("support-summary").innerHTML = `<span class="dot gray"></span> Stack 구현 자료가 연결되지 않았습니다.`;
   const refs = item.references.filter((ref) => ref.fromAnchor === content.anchor);
-  if (refs.length) $("ref-text").insertAdjacentHTML("beforeend", `<ul>${refs.map((ref) => `<li>TS ${esc(ref.spec)}${ref.clause ? ` · Clause ${esc(ref.clause)}` : ""}</li>`).join("")}</ul>`);
+  if (refs.length) $("ref-text").insertAdjacentHTML("beforeend", `<ul>${refs.map((ref) => {
+    const resolved = ref.status === "resolved" && ref.targetVersion && ref.targetAnchor;
+    if (!resolved) return `<li>TS ${esc(ref.spec)}${ref.clause ? ` · Clause ${esc(ref.clause)}` : ""} — Reference source not available</li>`;
+    const href = new URL(`docs/spec/${ref.spec}/${ref.targetVersion}/source-1/#${ref.targetAnchor}`, baseUrl);
+    const target = specEntriesFor(ref.spec).find((candidate) => candidate.version === ref.targetVersion);
+    return `<li>TS ${esc(ref.spec)}${ref.clause ? ` · Clause ${esc(ref.clause)}` : ""}${target?.sourceUrl ? ` · <a href="${esc(target.sourceUrl)}" target="_blank" rel="noopener">Official source</a>` : ""} · <a href="${href}">Open full clause</a></li>`;
+  }).join("")}</ul>`);
   $("trace-version-badge").textContent = `Sample · V${item.version}`;
   $("trace-version-label").textContent = `V${item.version}`;
   renderCompare();
 }
 function renderCompare() {
   const versions = specEntries().map((item) => item.version);
+  $("version-select").innerHTML = versions.map((version) => `<option value="${esc(version)}">V${esc(version)}</option>`).join("");
+  $("version-select").value = entry()?.version || "";
   ["compare-a", "compare-b", "main-compare-a", "main-compare-b"].forEach((id) => {
     const select = $(id);
-    select.innerHTML = `<option value="18.3.0">V18.3.0</option><option value="18.4.0">V18.4.0</option>`;
-    select.disabled = false;
+    select.innerHTML = versions.map((version) => `<option value="${esc(version)}">V${esc(version)}</option>`).join("");
+    select.disabled = true;
   });
-  $("compare-btn").disabled = false;
-  $("main-compare-btn").disabled = false;
+  $("compare-btn").disabled = true;
+  $("main-compare-btn").disabled = true;
   $("diff-panel").classList.remove("show");
   $("version-strip").innerHTML = ["18.2.0", "18.3.0", "18.4.0", "19.0.0"].map((version) => `<button class="ver-btn ${version === "19.0.0" ? "active" : ""}">V${version}</button>`).join("");
   $("version-history").innerHTML = [
@@ -424,7 +455,7 @@ function renderCompare() {
     ["18.4.0", "Length changed · New Field added · Trace output changed"],
     ["19.0.0", "No direct change from V18.4.0"]
   ].map(([version, change]) => `<div class="change-row"><strong>V${version}</strong><span><span class="dot gray"></span> Sample</span><div>${change}</div></div>`).join("");
-  $("main-diff-output").innerHTML = `<p class="spec-note">실제 비교 버전이 하나뿐이어서 아래 Diff는 UI 샘플입니다.</p>`;
+  $("main-diff-output").innerHTML = `<p class="spec-note">실제 Diff 입력이 연결되지 않았습니다. 아래 내용은 UI 샘플입니다.</p>`;
 }
 
 async function loadContent() {
@@ -437,7 +468,18 @@ async function loadContent() {
   renderContent();
 }
 
-$("version-select").onchange = async (event) => { currentVersion = event.target.value; await loadContent(); };
+$("version-select").onchange = async (event) => {
+  const oldMessage = activeMessage;
+  const oldClause = selected?.number;
+  const oldIE = selectedIE;
+  currentVersion = event.target.value;
+  const next = entry();
+  activeMessage = oldMessage ? next.messages.find((candidate) => candidate.number === oldMessage.number) || next.messages[0] : null;
+  selectedIE = oldIE && activeMessage ? activeMessage.ies.find((ie) => ie.reference === oldIE.reference && ie.name === oldIE.name) || null : null;
+  selected = selectedIE ? next.clauses.find((clause) => clause.number === selectedIE.reference) || activeMessage : oldClause ? next.clauses.find((clause) => clause.number === oldClause) || next.clauses[0] : activeMessage || next.clauses[0];
+  messageCollapsed = false;
+  await loadContent();
+};
 $("portal-search").oninput = renderSidebar;
 let changesOnly = false;
 $("changes-only-btn").onclick = () => {
@@ -448,10 +490,12 @@ $("changes-only-btn").onclick = () => {
   });
 };
 $("compare-btn").onclick = () => {
+  if ($("compare-btn").disabled) return;
   $("diff-panel").innerHTML = '<strong>Sample · V18.3.0 → V18.4.0</strong><br><br><span class="diff-add">Example IE B introduced/changed</span>';
   $("diff-panel").classList.add("show");
 };
 $("main-compare-btn").onclick = () => {
+  if ($("main-compare-btn").disabled) return;
   $("main-diff-output").innerHTML = `<p class="spec-note">Sample · V18.3.0 → V18.4.0: <span class="diff-add">Example IE B introduced/changed</span></p>`;
 };
 document.querySelectorAll(".tab").forEach((button) => button.onclick = () => {
