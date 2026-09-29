@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3GPP N1 Spec Portal Mockup</title>
+<style>
+:root{
+  --bg:#f6f8fb; --panel:#fff; --line:#e4e8ef; --text:#142033; --muted:#677489;
+  --blue:#2563eb; --blue-soft:#eef4ff; --green:#16a34a; --green-soft:#ecfdf3;
+  --red:#dc2626; --red-soft:#fef2f2; --amber:#d97706; --gray:#94a3b8;
+  --purple:#7c3aed; --shadow:0 8px 28px rgba(15,23,42,.06)
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans KR",sans-serif;background:var(--bg);color:var(--text)}
+button,select,input{font:inherit}
+a{color:var(--blue);text-decoration:none}
+.topbar{height:64px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:20px}
+.logo{width:38px;height:38px;border-radius:9px;background:linear-gradient(135deg,#1d4ed8,#60a5fa);color:#fff;display:grid;place-items:center}
+.top-actions{display:flex;align-items:center;gap:10px}
+.search{width:260px;padding:10px 13px;border:1px solid var(--line);border-radius:10px;background:#f8fafc}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr) 320px;min-height:calc(100vh - 64px)}
+.sidebar,.rightbar{background:#fff;position:sticky;top:64px;height:calc(100vh - 64px);overflow:auto}
+.sidebar{border-right:1px solid var(--line);padding:18px 14px}
+.rightbar{border-left:1px solid var(--line);padding:22px 18px}
+.main{padding:26px 30px 60px;min-width:0}
+.side-title{font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:#8a94a6;margin:10px 10px 8px}
+.tree{list-style:none;padding:0;margin:0}
+.tree li{margin:2px 0}
+.node{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;font-size:14px}
+.node:hover{background:#f6f8fb}
+.node.active{background:var(--blue-soft);color:#1d4ed8;font-weight:700}
+.tree button.node{width:100%;border:0;background:transparent;text-align:left;cursor:pointer}
+.tree button.node:hover{background:#f6f8fb}
+.tree button.node.active{background:var(--blue-soft);color:#1d4ed8;font-weight:700}
+.ind1{padding-left:22px}.ind2{padding-left:38px}.ind3{padding-left:54px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.green{background:var(--green)}.red{background:var(--red)}.amber{background:var(--amber)}.gray{background:var(--gray)}
+.breadcrumb{font-size:13px;color:var(--muted);margin-bottom:14px}
+.header-row{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}
+h1{font-size:34px;margin:0 0 6px}
+.sub{color:var(--muted);font-size:14px}
+.status-pill{display:inline-flex;gap:7px;align-items:center;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:7px 11px;border-radius:999px;font-weight:700;font-size:13px}
+.tabs{display:flex;gap:8px;margin-top:18px;border-bottom:1px solid var(--line)}
+.tab{border:0;background:transparent;padding:10px 14px 12px;cursor:pointer;color:#64748b;font-weight:700}
+.tab.active{color:#1d4ed8;border-bottom:2px solid #1d4ed8}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);margin-top:20px;overflow:hidden}
+.card-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
+.card-head h2{font-size:18px;margin:0}
+.card-body{padding:18px}
+.spec-note{font-size:12px;color:#7c8798;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px 12px;margin-bottom:14px}
+.spec-text{line-height:1.75;font-size:15px;white-space:pre-wrap}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+.fixed-diff-table{table-layout:fixed;width:100%}
+.fixed-diff-table th:nth-child(1),.fixed-diff-table td:nth-child(1){width:22%}
+.fixed-diff-table th:nth-child(2),.fixed-diff-table td:nth-child(2),
+.fixed-diff-table th:nth-child(3),.fixed-diff-table td:nth-child(3){width:39%}
+.fixed-diff-table td{word-break:break-word;overflow-wrap:anywhere}
+th{background:#f8fafc;font-weight:700}
+td.center,th.center{text-align:center}
+.row-selected{background:#f7fbff}
+.badge{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;font-size:12px;font-weight:700}
+.badge.changed{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.badge.same{background:#f8fafc;color:#64748b;border:1px solid #e2e8f0}
+.reference-box{background:#fbfdff;border:1px solid #dbeafe;border-radius:12px;padding:14px}
+.reference-box summary{cursor:pointer;font-weight:700;color:#1d4ed8}
+.reference-content{margin-top:12px;padding-top:12px;border-top:1px solid #dbeafe}
+.version-strip{display:flex;flex-wrap:wrap;gap:8px}
+.ver-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 10px;cursor:pointer}
+.ver-btn.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.change-row{display:grid;grid-template-columns:100px 120px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid #eef2f7;font-size:14px}
+.change-row:last-child{border-bottom:0}
+.right-section{margin-bottom:24px}
+.right-section h3{font-size:14px;margin:0 0 10px}
+.select{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px;background:#fff}
+.legend{display:grid;gap:8px;font-size:13px;color:#4b5563}
+.legend div{display:flex;align-items:center;gap:8px}
+.compare-box{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:12px}
+.compare-grid{display:grid;grid-template-columns:1fr 24px 1fr;gap:7px;align-items:center}
+.btn{width:100%;margin-top:10px;border:0;background:#1d4ed8;color:#fff;padding:10px;border-radius:9px;font-weight:700;cursor:pointer}
+.btn.secondary{background:#e8eef8;color:#23324a}
+.diff-panel{display:none;margin-top:12px;padding:12px;border-radius:10px;background:#fff;border:1px solid var(--line);font-size:13px;line-height:1.6}
+.diff-panel.show{display:block}
+.diff-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.diff-side{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.diff-side-head{padding:10px 12px;background:#f8fafc;font-weight:800;border-bottom:1px solid var(--line)}
+.diff-content{padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.diff-del{background:var(--red-soft);color:#991b1b;text-decoration:line-through;text-decoration-thickness:1px;padding:1px 3px;border-radius:4px}
+.diff-add{background:var(--green-soft);color:#166534;padding:1px 3px;border-radius:4px}
+.diff-block-del{display:block;background:var(--red-soft);color:#991b1b;padding:6px 8px;border-left:3px solid var(--red);margin:3px 0}
+.diff-block-add{display:block;background:var(--green-soft);color:#166534;padding:6px 8px;border-left:3px solid var(--green);margin:3px 0}
+.trace-box{background:#0f172a;color:#e2e8f0;border-radius:12px;padding:16px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.65;white-space:pre-wrap;overflow:auto}
+.trace-tabs{display:flex;gap:8px;margin-bottom:12px}
+.trace-tab{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px}
+.trace-tab.active{background:#1d4ed8;color:#fff;border-color:#1d4ed8}
+.trace-meta{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;color:#64748b;font-size:13px}
+.muted{color:var(--muted)}
+.hidden{display:none}
+@media(max-width:1150px){.layout{grid-template-columns:280px 1fr}.rightbar{display:none}}
+@media(max-width:760px){.layout{grid-template-columns:1fr}.sidebar{display:block;position:static;height:auto;max-height:280px;border-right:0;border-bottom:1px solid var(--line)}.main{padding:18px}.search{display:none}.diff-columns{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><div class="logo">5G</div>3GPP N1 Spec Portal</div>
+  <div class="top-actions"><input class="search" id="portal-search" placeholder="Search clause, message, IE..."></div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="side-title">N1</div>
+    <ul class="tree" id="spec-tree">
+      <li><div class="node"><strong>▾ TS 24.501</strong></div></li>
+      <li><div class="node ind1">▸ General / Common Rules</div></li>
+      <li><div class="node ind2">4 General</div></li>
+      <li><div class="node ind1"><strong>▾ Messages</strong></div></li>
+      <li><div class="node ind2"><strong>▾ Registration request</strong></div></li>
+      <li><div class="node ind3 active"><span class="dot gray"></span>Extended protocol discriminator</div></li>
+      <li><div class="node ind3"><span class="dot gray"></span>Security header type</div></li>
+      <li><div class="node ind3"><span class="dot gray"></span>Spare half octet</div></li>
+      <li><div class="node ind2">▸ Service request</div></li>
+      <li><div class="node ind2">▸ Registration accept</div></li>
+    </ul>
+    <div class="side-title">Referenced Specifications</div>
+    <ul class="tree"><li><div class="node">▾ TS 24.008</div></li><li><div class="node ind1">Referenced clauses</div></li><li><div class="node">▸ Other referenced TS</div></li></ul>
+  </aside>
+
+  <main class="main">
+    <div class="breadcrumb">N1 / TS 24.501 / Registration Request / 5GS Mobile Identity</div>
+
+    <div class="header-row">
+      <div>
+        <h1>5GS Mobile Identity</h1>
+        <div class="sub">TS 24.501 · <span id="current-version-label">V18.3.0</span> · clause/reference preserved from source</div>
+      </div>
+      <div class="status-pill" id="status-pill"><span class="dot green"></span><span>Supported</span></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="spec">Specification</button>
+      <button class="tab" data-tab="trace">Trace</button>
+      <button class="tab" data-tab="diff">Diff</button>
+    </div>
+
+    <section id="tab-spec">
+      <div class="card">
+        <div class="card-head"><h2>Specification content</h2><span class="badge same">Source-preserved</span></div>
+        <div class="card-body">
+          <div class="spec-note" id="source-note">실제 규격 원본에서 선택한 메시지의 본문과 IE 구성을 표시합니다.</div>
+          <div class="spec-text" id="spec-text"></div>
+
+          <h3 style="margin-top:22px" id="message-table-title">Message IE Table</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Information element</th><th class="center">Presence</th><th class="center">IEI</th>
+                <th class="center">Length</th><th>Reference</th><th class="center">Stack</th>
+              </tr>
+            </thead>
+            <tbody id="ie-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="field-card">
+        <div class="card-head"><h2>IE structure / field table</h2><span class="badge same">Sample</span></div>
+        <div class="card-body">
+          <table>
+            <thead><tr><th>Octet / Field</th><th>Bits</th><th>Definition</th><th>Value / Reference</th></tr></thead>
+            <tbody id="field-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Referenced specification</h2></div>
+        <div class="card-body">
+          <details class="reference-box" open>
+            <summary>TS 24.008 · referenced clause</summary>
+            <div class="reference-content">
+              <div class="muted" style="margin-bottom:10px">
+                실제 시스템에서는 TS 24.501에서 참조된 Clause를 자동 연결하고, 선택한 Release/Version에 대응하는 TS 24.008 내용을 표시합니다.
+              </div>
+              <div id="ref-text"></div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Version history</h2>
+          <button class="ver-btn" id="changes-only-btn">Changes only</button>
+        </div>
+        <div class="card-body">
+          <div class="version-strip" id="version-strip"></div>
+          <div id="version-history" style="margin-top:14px"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-trace" class="hidden">
+      <div class="card">
+        <div class="card-head"><h2>Trace output</h2><span class="badge same" id="trace-version-badge">V18.3.0</span></div>
+        <div class="card-body">
+          <div class="trace-meta">
+            <span>Sample trace data</span>
+            <span>Direction: UE → AMF</span>
+            <span>Version: <strong id="trace-version-label">V18.3.0</strong></span>
+          </div>
+
+          <div class="trace-tabs">
+            <button class="trace-tab active" data-trace-mode="raw">Raw Hex</button>
+            <button class="trace-tab" data-trace-mode="decoded">Decoded</button>
+          </div>
+
+          <div id="trace-raw" class="trace-box"></div>
+          <div id="trace-decoded" class="trace-box hidden"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-diff" class="hidden">
+      <div class="card">
+        <div class="card-head"><h2>Actual content diff</h2><span class="badge changed">Added / Removed highlighted</span></div>
+        <div class="card-body">
+          <div class="compare-grid" style="max-width:520px">
+            <select id="main-compare-a" class="select"></select>
+            <span style="text-align:center">↔</span>
+            <select id="main-compare-b" class="select"></select>
+          </div>
+          <button class="btn" id="main-compare-btn" style="max-width:220px">Show Diff</button>
+
+          <div id="main-diff-output" style="margin-top:18px"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="rightbar">
+    <div class="right-section">
+      <h3>Specification Version</h3>
+      <select id="version-select" class="select"></select>
+    </div>
+
+    <div class="right-section">
+      <h3>Stack Support</h3>
+      <div id="support-summary"></div>
+    </div>
+
+    <div class="right-section">
+      <h3>Legend</h3>
+      <div class="legend">
+        <div><span class="dot green"></span>Supported</div>
+        <div><span class="dot red"></span>Not supported</div>
+        <div><span class="dot gray"></span>N/A</div>
+        <div><span class="diff-add">+ Added</span></div>
+        <div><span class="diff-del">- Removed</span></div>
+      </div>
+    </div>
+
+    <div class="right-section">
+      <h3>Quick Compare</h3>
+      <div class="compare-box">
+        <div class="compare-grid">
+          <select id="compare-a" class="select"></select>
+          <span style="text-align:center">↔</span>
+          <select id="compare-b" class="select"></select>
+        </div>
+        <button class="btn" id="compare-btn">Show Differences</button>
+        <div class="diff-panel" id="diff-panel"></div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+const baseUrl = new URL("./", location.href);
+const catalogUrl = new URL("spec-catalog.json", baseUrl);
+const $ = (id) => document.getElementById(id);
+let catalog = [];
+let spec = "24.501";
+let currentVersion = "";
+let sourceMarkdown = "";
+let browseMode = "messages";
+let selected = null;
+let activeMessage = null;
+let selectedIE = null;
+
+const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+const specEntries = () => catalog.filter((entry) => entry.spec === spec).sort((a,b) => b.version.localeCompare(a.version, undefined, {numeric:true}));
+const entry = () => specEntries().find((item) => item.version === currentVersion) || specEntries()[0];
+const sourceUrl = (item) => new URL(`docs/spec/${item.spec}/${item.version}/source-1/`, baseUrl);
+const sourceMarkdownUrl = (item) => new URL(`spec-content/${item.spec}/${item.version}/source-1.md`, baseUrl);
+
+function sectionMarkup(item) {
+  const lines = sourceMarkdown.split("\n");
+  const slug = (line) => {
+    const match = line.match(/^(#{2,6})\s+(\d+(?:\.\d+)*[A-Z]?)\s+(.+)$/);
+    if (!match) return null;
+    const title = match[3].toLowerCase().normalize("NFKD").replace(/[^a-z0-9_-]+/g, "-");
+    return `${match[2].replaceAll(".", "").toLowerCase()}-${title}`.replace(/-$/, "");
+  };
+  const start = lines.findIndex((line) => slug(line) === item.anchor);
+  if (start < 0) return "<p>원문 섹션을 찾지 못했습니다.</p>";
+  const level = lines[start].match(/^#+/)[0].length;
+  let end = start + 1;
+  for (; end < lines.length; end += 1) {
+    const heading = lines[end].match(/^(#{2,6})\s+/);
+    if (heading && (lines[end].includes("Message IE table") || heading[1].length <= level)) break;
+  }
+  const section = lines.slice(start + 1, end);
+  const inline = (text) => esc(text).replaceAll("\\|", "|").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  const blocks = [];
+  for (let i = 0; i < section.length;) {
+    const line = section[i].trim();
+    if (!line) { i += 1; continue; }
+    if (line.startsWith("|")) {
+      const rows = [];
+      while (i < section.length && section[i].trim().startsWith("|")) {
+        const cells = section[i++].trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim());
+        if (!cells.every((cell) => /^:?-{3,}:?$/.test(cell))) rows.push(cells);
+      }
+      if (rows.length) blocks.push(`<div style="overflow:auto"><table><tbody>${rows.map((row, r) => `<tr>${row.map((cell) => r === 0 ? `<th>${inline(cell)}</th>` : `<td>${inline(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+      continue;
+    }
+    const heading = line.match(/^#{1,6}\s+(.+)/);
+    if (heading) { blocks.push(`<h3>${inline(heading[1])}</h3>`); i += 1; continue; }
+    if (/^[-*]\s+/.test(line)) {
+      const list = [];
+      while (i < section.length && /^\s*[-*]\s+/.test(section[i])) list.push(`<li>${inline(section[i++].replace(/^\s*[-*]\s+/, ""))}</li>`);
+      blocks.push(`<ul>${list.join("")}</ul>`);
+      continue;
+    }
+    const paragraph = [line]; i += 1;
+    while (i < section.length && section[i].trim() && !section[i].trim().startsWith("|") && !/^#{1,6}\s+/.test(section[i]) && !/^[-*]\s+/.test(section[i])) paragraph.push(section[i++].trim());
+    blocks.push(`<p>${inline(paragraph.join(" "))}</p>`);
+  }
+  return blocks.join("");
+}
+async function selectSpec(nextSpec) {
+  spec = nextSpec;
+  currentVersion = specEntries()[0]?.version || "";
+  activeMessage = entry()?.messages.find((candidate) => /registration request/i.test(candidate.title)) || entry()?.messages[0] || null;
+  selected = activeMessage || entry()?.clauses[0] || null;
+  selectedIE = null;
+  await loadContent();
+}
+
+function renderSidebar() {
+  const item = entry();
+  activeMessage ||= selected?.ies ? selected : item.messages.find((candidate) => /registration request/i.test(candidate.title)) || item.messages[0];
+  const otherMessages = ["registration accept", "service request"].map((name) => item.messages.find((candidate) => candidate !== activeMessage && candidate.title.toLowerCase().includes(name))).filter(Boolean);
+  const ieRows = (activeMessage.ies || []).slice(0, 3);
+  $("spec-tree").innerHTML = `
+    <li><button class="node" data-action="spec" data-spec="${item.spec}"><strong>▾ TS ${item.spec}</strong></button></li>
+    <li><button class="node ind1" data-action="clause" data-anchor="${esc(item.clauses.find((clause) => clause.number === "4")?.anchor || "")}">▸ General / Common Rules</button></li>
+    <li><button class="node ind2" data-action="clause" data-anchor="${esc(item.clauses.find((clause) => clause.number === "4")?.anchor || "")}">${esc(item.clauses.find((clause) => clause.number === "4")?.title || "General")}</button></li>
+    <li><div class="node ind1"><strong>▾ Messages</strong></div></li>
+    <li><button class="node ind2 ${!selectedIE && selected === activeMessage ? "active" : ""}" data-action="message" data-anchor="${esc(activeMessage.anchor)}"><strong>▾ ${esc(activeMessage.title)}</strong></button></li>
+    ${ieRows.map((ie, index) => `<li><button class="node ind3 ${selectedIE === ie ? "active" : ""}" data-action="ie" data-index="${index}"><span class="dot gray"></span>${esc(ie.name || ie.rawReference)}</button></li>`).join("")}
+    ${otherMessages.map((other) => `<li><button class="node ind2" data-action="message" data-anchor="${esc(other.anchor)}">▸ ${esc(other.title)}</button></li>`).join("")}`;
+  $("spec-tree").querySelectorAll("[data-action]").forEach((button) => button.onclick = async () => {
+    if (button.dataset.action === "spec") return selectSpec(button.dataset.spec);
+    if (button.dataset.action === "clause") {
+      selected = item.clauses.find((clause) => clause.anchor === button.dataset.anchor) || item.clauses[0];
+      selectedIE = null;
+    } else if (button.dataset.action === "message") {
+      activeMessage = item.messages.find((candidate) => candidate.anchor === button.dataset.anchor) || activeMessage;
+      selected = activeMessage;
+      selectedIE = null;
+    } else {
+      selectedIE = activeMessage.ies[Number(button.dataset.index)];
+      selected = item.clauses.find((clause) => clause.number === selectedIE?.reference) || activeMessage;
+    }
+    renderSidebar();
+    renderContent();
+  });
+}
+
+function renderContent() {
+  const item = entry();
+  if (!item || !selected || !sourceMarkdown) return;
+  const message = activeMessage || (selected.ies ? selected : item.messages[0]);
+  const isMessage = Boolean(selected.ies);
+  const content = selectedIE ? (item.clauses.find((clause) => clause.number === selectedIE.reference) || message) : selected;
+  const title = selectedIE?.name || (isMessage ? message.ies[0]?.name || message.title : `${selected.number} ${selected.title}`);
+  $("current-version-label").textContent = `V${item.version}`;
+  $("current-version-label").closest(".sub").innerHTML = `TS ${item.spec} · <span id="current-version-label">V${item.version}</span> · <a href="${sourceUrl(item)}" target="_blank" rel="noopener">원문 전체 보기</a>`;
+  document.querySelector(".breadcrumb").textContent = `N1 / TS ${item.spec} / ${message.title} / ${title}`;
+  document.querySelector("h1").textContent = title;
+  $("spec-text").innerHTML = sectionMarkup(content);
+  $("source-note").textContent = `TS ${item.spec} V${item.version} DOCX에서 추출한 원문 섹션입니다.`;
+  $("message-table-title").textContent = `${message.title} · Information Elements`;
+  $("ie-table-body").innerHTML = message.ies.map((ie) => `<tr class="${selectedIE === ie ? "row-selected" : ""}"><td>${esc(ie.name || ie.rawReference)}</td><td class="center">${esc(ie.presence)}</td><td class="center">${esc(ie.iei)}</td><td class="center">${esc(ie.length)}</td><td>${item.sourceUrl ? `<a href="${esc(item.sourceUrl)}" target="_blank" rel="noopener" title="Open official 3GPP TS ${item.spec} V${item.version} source archive">${esc(ie.reference || ie.rawReference || "3GPP source")} ↗</a>` : esc(ie.reference || ie.rawReference)}</td><td class="center"><span class="dot gray" title="Stack 근거 미연결"></span></td></tr>`).join("");
+  $("field-card").classList.toggle("hidden", !isMessage && !selectedIE);
+  $("ref-text").innerHTML = `<a href="${sourceUrl(item)}" target="_blank" rel="noopener">TS ${item.spec} V${item.version} 전체 원문 보기</a><p class="muted">참조 규격은 원본 문서의 참조 목록에 기록되어 있습니다. 이 포털에 업로드된 규격은 TS 24.501과 TS 24.008입니다.</p>`;
+  const pill = $("status-pill");
+  pill.innerHTML = `<span class="dot gray"></span><span>Stack 근거 미연결</span>`;
+  pill.style.cssText = "background:#f8fafc;color:#475569;border-color:#e2e8f0";
+  $("support-summary").innerHTML = `<span class="dot gray"></span> Stack 구현 자료가 연결되지 않았습니다.`;
+  const refs = item.references.filter((ref) => ref.fromAnchor === content.anchor);
+  if (refs.length) $("ref-text").insertAdjacentHTML("beforeend", `<ul>${refs.map((ref) => `<li>TS ${esc(ref.spec)}${ref.clause ? ` · Clause ${esc(ref.clause)}` : ""}</li>`).join("")}</ul>`);
+  $("trace-version-badge").textContent = `Sample · V${item.version}`;
+  $("trace-version-label").textContent = `V${item.version}`;
+  renderCompare();
+}
+function renderCompare() {
+  const versions = specEntries().map((item) => item.version);
+  ["compare-a", "compare-b", "main-compare-a", "main-compare-b"].forEach((id) => {
+    const select = $(id);
+    select.innerHTML = `<option value="18.3.0">V18.3.0</option><option value="18.4.0">V18.4.0</option>`;
+    select.disabled = false;
+  });
+  $("compare-btn").disabled = false;
+  $("main-compare-btn").disabled = false;
+  $("diff-panel").classList.remove("show");
+  $("version-strip").innerHTML = ["18.2.0", "18.3.0", "18.4.0", "19.0.0"].map((version) => `<button class="ver-btn ${version === "19.0.0" ? "active" : ""}">V${version}</button>`).join("");
+  $("version-history").innerHTML = [
+    ["18.2.0", "Base/reference version"],
+    ["18.3.0", "Example IE B introduced/changed"],
+    ["18.4.0", "Length changed · New Field added · Trace output changed"],
+    ["19.0.0", "No direct change from V18.4.0"]
+  ].map(([version, change]) => `<div class="change-row"><strong>V${version}</strong><span><span class="dot gray"></span> Sample</span><div>${change}</div></div>`).join("");
+  $("main-diff-output").innerHTML = `<p class="spec-note">실제 비교 버전이 하나뿐이어서 아래 Diff는 UI 샘플입니다.</p>`;
+}
+
+async function loadContent() {
+  const item = entry();
+  if (!item) throw new Error(`TS ${spec} catalog entry not found`);
+  const response = await fetch(sourceMarkdownUrl(item));
+  if (!response.ok) throw new Error(`Could not load TS ${spec} V${item.version}`);
+  sourceMarkdown = await response.text();
+  renderSidebar();
+  renderContent();
+}
+
+$("version-select").onchange = async (event) => { currentVersion = event.target.value; await loadContent(); };
+$("portal-search").oninput = renderSidebar;
+let changesOnly = false;
+$("changes-only-btn").onclick = () => {
+  changesOnly = !changesOnly;
+  $("changes-only-btn").textContent = changesOnly ? "Show all versions" : "Changes only";
+  document.querySelectorAll("#version-history .change-row").forEach((row) => {
+    row.classList.toggle("hidden", changesOnly && row.textContent.includes("No direct change"));
+  });
+};
+$("compare-btn").onclick = () => {
+  $("diff-panel").innerHTML = '<strong>Sample · V18.3.0 → V18.4.0</strong><br><br><span class="diff-add">Example IE B introduced/changed</span>';
+  $("diff-panel").classList.add("show");
+};
+$("main-compare-btn").onclick = () => {
+  $("main-diff-output").innerHTML = `<p class="spec-note">Sample · V18.3.0 → V18.4.0: <span class="diff-add">Example IE B introduced/changed</span></p>`;
+};
+document.querySelectorAll(".tab").forEach((button) => button.onclick = () => {
+  document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab === button));
+  ["spec", "trace", "diff"].forEach((name) => $(`tab-${name}`).classList.toggle("hidden", name !== button.dataset.tab));
+});
+document.querySelectorAll(".trace-tab").forEach((button) => button.onclick = () => {
+  document.querySelectorAll(".trace-tab").forEach((tab) => tab.classList.toggle("active", tab === button));
+  $("trace-raw").classList.toggle("hidden", button.dataset.traceMode !== "raw");
+  $("trace-decoded").classList.toggle("hidden", button.dataset.traceMode !== "decoded");
+});
+
+fetch(catalogUrl).then((response) => response.json()).then(async (data) => {
+  catalog = data;
+  if (!specEntries().length) spec = catalog[0]?.spec;
+  currentVersion = specEntries()[0]?.version;
+  activeMessage = entry()?.messages.find((candidate) => /registration request/i.test(candidate.title)) || entry()?.messages[0] || null;
+  selected = activeMessage || entry()?.clauses[0];
+  await loadContent();
+}).catch((error) => {
+  document.querySelector(".main").innerHTML = `<div class="card"><div class="card-body">규격 데이터를 불러오지 못했습니다: ${esc(error.message)}</div></div>`;
+});
+</script>
+</body>
+</html>

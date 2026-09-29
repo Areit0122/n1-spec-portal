@@ -6,6 +6,8 @@ __pycache__/
 # Production
 /build
 /docs/spec/
+/static/spec-catalog.json
+/static/spec-content/
 
 # Generated files
 .docusaurus

@@ -1,39 +1,15 @@
-import clsx from 'clsx';
-import Link from '@docusaurus/Link';
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
-import Layout from '@theme/Layout';
-
-import Heading from '@theme/Heading';
-import styles from './index.module.css';
-
-function HomepageHeader() {
-  const {siteConfig} = useDocusaurusContext();
-  return (
-    <header className={clsx('hero hero--primary', styles.heroBanner)}>
-      <div className="container">
-        <Heading as="h1" className="hero__title">
-          {siteConfig.title}
-        </Heading>
-        <p className="hero__subtitle">{siteConfig.tagline}</p>
-        <div className={styles.buttons}>
-          <Link
-            className="button button--secondary button--lg"
-            to="/docs/spec">
-            Browse specifications
-          </Link>
-        </div>
-      </div>
-    </header>
-  );
-}
+import Head from '@docusaurus/Head';
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 export default function Home() {
-  const {siteConfig} = useDocusaurusContext();
   return (
-    <Layout
-      title={siteConfig.title}
-      description={siteConfig.tagline}>
-      <HomepageHeader />
-    </Layout>
+    <>
+      <Head><title>3GPP N1 Spec Portal</title></Head>
+      <iframe
+        title="3GPP N1 Spec Portal"
+        src={useBaseUrl('/3gpp_n1_spec_portal_diff_fixed.html?v=5')}
+        style={{position: 'fixed', inset: 0, width: '100%', height: '100%', border: 0}}
+      />
+    </>
   );
 }
